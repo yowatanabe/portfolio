@@ -1,0 +1,340 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Ver5"
+
+Parameters:
+  # SSH用キーペアの指定
+  KeyPair:
+    Description: KeyPair Name
+    Type: AWS::EC2::KeyPair::KeyName
+
+Mappings:
+  ELBAccountId:
+    ap-northeast-1:
+      "AccountId": "582318560864"
+
+Resources:
+  # VPC
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: test-vpc
+
+  # パブリックサブネット
+  PublicSubnet1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.10.0/24
+      AvailabilityZone: ap-northeast-1a
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: public-subnet-1a
+
+  PublicSubnet1c:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.11.0/24
+      AvailabilityZone: ap-northeast-1c
+      VpcId: !Ref VPC
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: public-subnet-1c
+
+  # プライベートサブネット
+  PrivateSubnet1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.20.0/24
+      AvailabilityZone: ap-northeast-1a
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: private-subnet-1a
+
+  PrivateSubnet1c:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 10.0.30.0/24
+      AvailabilityZone: ap-northeast-1c
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: private-subnet-1c
+
+  # ルートテーブル
+  RouteTable:
+    Type:  AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: public-route
+
+  # インターネットゲートウェイ
+  IGW:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: igw
+
+  # インターネットゲートウェイとルートテーブルの関連付け
+  RouteInternet:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref IGW
+
+  # サブネットとルートテーブルの関連付け
+  RouteLocal1a:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1a
+      RouteTableId: !Ref RouteTable
+
+  RouteLocal1c:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1c
+      RouteTableId: !Ref RouteTable
+
+  # VPCGatewayAttachment
+  AwsCfNewwProject:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref IGW
+
+  # WEBSV用セキュリティグループ
+  WEBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: web-sg
+      GroupName: web-sg
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIpv6: ::/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIpv6: ::/0
+      Tags:
+        - Key: Name
+          Value: web-sg
+
+  # RDS用セキュリティグループ
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: rds-sg
+      GroupName: rds-sg
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref WEBSecurityGroup
+      Tags:
+        - Key: Name
+          Value: rds-sg
+
+  # ALB用セキュリティグループ
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: alb-sg
+      GroupName: alb-sg
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIpv6: ::/0
+      Tags:
+        - Key: Name
+          Value: alb-sg
+
+  # EC2インスタンス（WEB)
+  EC2Instance01:
+    Type: AWS::EC2::Instance
+    Properties:
+      SubnetId: !Ref PublicSubnet1a
+      InstanceType: t2.micro
+      AvailabilityZone: ap-northeast-1a
+      KeyName: !Ref KeyPair
+      Monitoring: false
+      ImageId: ami-068a6cefc24c301d2
+      InstanceInitiatedShutdownBehavior: stop
+      SecurityGroupIds:
+        - !Ref WEBSecurityGroup
+      Tags:
+        - Key: Name
+          Value: SV#1
+
+  # EC2インスタンス（WEB)
+  EC2Instance02:
+    Type: AWS::EC2::Instance
+    Properties:
+      SubnetId: !Ref PublicSubnet1c
+      InstanceType: t2.micro
+      AvailabilityZone: ap-northeast-1c
+      KeyName: !Ref KeyPair
+      Monitoring: false
+      ImageId: ami-068a6cefc24c301d2
+      InstanceInitiatedShutdownBehavior: stop
+      SecurityGroupIds:
+        - !Ref WEBSecurityGroup
+      Tags:
+        - Key: Name
+          Value: SV#2
+
+  # ALB
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties: 
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: /
+      HealthCheckPort: traffic-port
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      Matcher: 
+        HttpCode: 200
+      Name: web-tg
+      Port: 80
+      Protocol: HTTP
+      Targets: 
+      - Id: !Ref EC2Instance01
+        Port: 80
+      - Id: !Ref EC2Instance02
+        Port: 80
+      TargetType: instance
+      UnhealthyThresholdCount: 2
+      VpcId: !Ref VPC
+
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties: 
+      LoadBalancerAttributes: 
+        - Key: access_logs.s3.enabled 
+          Value: true
+        - Key: access_logs.s3.bucket
+          Value: elb-backet-test
+        - Key: access_logs.s3.prefix
+          Value: test-alb
+        - Key: idle_timeout.timeout_seconds
+          Value: 60
+        - Key: routing.http2.enabled
+          Value: true
+      Name: test-alb
+      SecurityGroups: 
+        - !Ref ALBSecurityGroup
+      Subnets: 
+        - !Ref PublicSubnet1a
+        - !Ref PublicSubnet1c
+
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties: 
+      DefaultActions: 
+        - Type: forward
+          TargetGroupArn: !Ref TargetGroup
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+
+  # RDSのサブネットグループ
+  SubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: aws-and-infra-private-DB-Subnet-Grp
+      DBSubnetGroupName: aws-and-infra-private-db-subnet-grp
+      SubnetIds:
+        - !Ref PrivateSubnet1a
+        - !Ref PrivateSubnet1c
+
+  # RDS
+  RDS:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AvailabilityZone: ap-northeast-1a
+      Engine: mysql
+      EngineVersion: 5.7.22
+      LicenseModel: general-public-license
+      DBInstanceClass: db.t2.micro
+      MultiAZ: false
+      StorageType: gp2
+      DBInstanceIdentifier: mydatabase
+      MasterUsername: admin
+      MasterUserPassword: pkyCrDnWeTMHgDDqOHri
+      Port: 3306
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+      AllocatedStorage: 20
+      AllowMajorVersionUpgrade: false
+      AutoMinorVersionUpgrade: true
+      PubliclyAccessible: false
+      DBParameterGroupName: default.mysql5.7
+      OptionGroupName: default:mysql-5-7
+      CopyTagsToSnapshot: false
+      BackupRetentionPeriod: 1
+      MonitoringInterval: 0
+      DBSubnetGroupName: !Ref SubnetGroup
+
+  # S3
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: elb-backet-test
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+
+  S3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3Bucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Sid: "AlbWriteAccess"
+            Effect: "Allow"
+            Principal:
+              AWS: !FindInMap [ ELBAccountId, !Ref "AWS::Region", AccountId ]
+            Action: 
+              - "s3:PutObject"
+            Resource: 
+              Fn::Join: 
+                - ""
+                - 
+                  - "arn:aws:s3:::"
+                  - 
+                    Ref: "S3Bucket"
+                  - "/*"
