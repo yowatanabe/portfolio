@@ -1,0 +1,24 @@
+- name: yum update を実行
+  yum: name=* state=latest
+
+- name: MySQLのリポジトリを追加
+  yum:
+   name: https://dev.mysql.com/get/mysql80-community-release-el7-1.noarch.rpm
+   state: present
+
+- name: MySQL のインストール
+  yum:
+    name: "{{ packages }}"
+    enablerepo: mysql57-community
+    disablerepo: mysql80-community
+    state: present
+  vars:
+    packages:
+    - mysql-community-server
+    - mysql-community-devel
+
+- name: mysqld 起動・自動起動設定
+  systemd:
+    name=mysqld.service
+    state=started
+    enabled=yes

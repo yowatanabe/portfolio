@@ -1,0 +1,46 @@
+- name: Gemfileにunicornを追加
+  blockinfile:
+    dest: "{{ Gemfile_path }}"
+    insertbefore: "^# Bundle edge Rails instead: gem 'rails', github: 'rails/rails'"
+    content: |
+      # Use Unicorn as the app server
+      gem 'unicorn', '5.5.2'
+
+- name: bundle install
+  become_user: ec2-user
+  shell: bash -lc "bundle install"
+  args:
+    chdir: "{{ rails_dir }}"
+
+- name: unicornの設定ファイルを作成
+  become_user: ec2-user
+  copy:
+   src: ./files/unicorn.rb
+   dest: "{{ rails_file_path }}"
+
+- name: unicornを起動
+  become_user: ec2-user
+  shell: bash -lc "bundle exec unicorn -c config/unicorn.rb -E development -D"
+  args:
+    chdir: "{{ rails_dir }}"
+
+- name: nginxの設定ファイルのバックアップを取得
+  shell: bash -lc "cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup"
+
+- name: nginxの設定ファイルを修正
+  copy:
+   src: ./files/nginx.conf
+   dest: "{{ nginx_cfg_path }}"
+
+- name: nginx 再起動
+  systemd:
+    name=nginx.service
+    state=restarted
+
+- name: nginxのパーミッション変更
+  file:
+    path="{{ nginx_path }}"
+    state=directory
+    recurse=yes
+    owner=ec2-user
+    group=root
