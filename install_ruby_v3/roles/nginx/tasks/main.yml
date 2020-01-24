@@ -1,8 +1,0 @@
-- name: nginxのインストール
-  shell: "amazon-linux-extras install nginx1 -y"
-
-- name: nginx 起動・自動起動設定
-  systemd:
-    name=nginx.service 
-    state=started
-    enabled=yes
