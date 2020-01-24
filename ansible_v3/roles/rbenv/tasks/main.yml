@@ -1,0 +1,57 @@
+- name: 必要なパッケージをインストール
+  # root権限で各パッケージをインストール
+  # become_user: root
+  yum:
+    name: "{{ packages }}"
+    state: present
+  vars:
+    packages:
+    - gcc-c++
+    - glibc-headers
+    - openssl-devel
+    - readline
+    - libyaml-devel
+    - readline-devel
+    - zlib
+    - zlib-devel
+    - libffi-devel
+    - libxml2
+    - libxslt
+    - libxml2-devel
+    - libxslt-devel
+    - sqlite-devel
+    - git
+
+- name: rbenvをインストール
+  git:
+    repo: https://github.com/sstephenson/rbenv.git
+    dest: "{{ rbenv_path }}"
+
+- name: 環境変数PATHにrbenvのパスを設定
+  blockinfile:
+    dest: "/etc/profile.d/rbenv.sh"
+    create: yes
+    insertafter: EOF
+    #marker: ""
+    content: |
+      export RBENV_ROOT="$HOME/.rbenv"
+      export PATH="${RBENV_ROOT}/bin:${PATH}"
+      eval "$(rbenv init -)"
+
+- name: ruby-buildをインストール
+  git:
+    repo: https://github.com/sstephenson/ruby-build.git
+    dest: "{{ rbenv_path }}/plugins/ruby-build"
+
+- name: rbenvのパーミッション変更
+  file:
+    path="{{ rbenv_path }}"
+    state=directory
+    recurse=yes
+    owner=ec2-user
+    group=wheel
+    mode=775
+
+- name: rbenv.sh に書き込んだ設定を読み込む
+  become_user: ec2-user
+  shell: source /etc/profile.d/rbenv.sh

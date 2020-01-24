@@ -1,0 +1,11 @@
+- name: rubyをインストール
+  become_user: ec2-user
+  shell: rbenv install {{ ruby_version }}
+
+- name: rbenv rehash
+  become_user: ec2-user
+  shell: rbenv rehash
+
+- name: rubyのバージョンを切り替え
+  become_user: ec2-user
+  shell: rbenv global {{ ruby_version }}
